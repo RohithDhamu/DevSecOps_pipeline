@@ -1,0 +1,27 @@
+#################################
+# Terraform
+#################################
+
+# Ignore local terraform working directory
+**/.terraform/*
+
+# Ignore state files
+*.tfstate
+*.tfstate.*
+
+# Ignore plan files
+*.tfplan
+
+# Ignore variable files (sensitive)
+*.tfvars
+*.tfvars.json
+
+# Ignore crash logs
+crash.log
+
+#################################
+# Credentials
+#################################
+
+*.json
+!terraform.tfvars.example
