@@ -1,0 +1,63 @@
+name: CI - Build & Scan
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write   # Required for OIDC
+
+env:
+  PROJECT_ID: cloudside-academy
+  REGION: us-central1
+  REPO_NAME: rohith-task
+  IMAGE_NAME: rohith-devsecops
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      #  Authenticate using OIDC
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/769170094354/locations/global/workloadIdentityPools/github-action-pool/providers/github-actions-provider"
+          service_account: "rohith-wif@cloudside-academy.iam.gserviceaccount.com"
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      #  Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }} .
+
+      # Install Trivy
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      # Scan Image
+      - name: Scan Image with Trivy
+        run: |
+          trivy image --severity HIGH,CRITICAL --exit-code 1 \
+          $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }}
+
+      #  Push Image
+      - name: Push Docker Image
+        run: |
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }}
