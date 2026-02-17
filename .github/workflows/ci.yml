@@ -12,7 +12,7 @@ permissions:
 env:
   PROJECT_ID: cloudside-academy
   REGION: us-central1
-  REPO_NAME: rohith-task
+  REPO_NAME: rohith-task          # Artifact Registry repo name (NOT cluster name)
   IMAGE_NAME: rohith-devsecops
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      #  Authenticate using OIDC
+      # Authenticate using OIDC
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -35,29 +35,25 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
 
-      #  Build Docker Image
+      # Build Docker Image (IMPORTANT: ./app)
       - name: Build Docker Image
         run: |
-          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }} .
+          docker build \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }} \
+            ./app
 
-      # Install Trivy
-      - name: Install Trivy
-        run: |
-          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install -y trivy
-
-      # Scan Image
+      # Scan Image with Trivy (clean method)
       - name: Scan Image with Trivy
-        run: |
-          trivy image --severity HIGH,CRITICAL --exit-code 1 \
-          $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }}
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          exit-code: 1
+          severity: HIGH,CRITICAL
 
-      #  Push Image
+      # Push Image
       - name: Push Docker Image
         run: |
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }}
