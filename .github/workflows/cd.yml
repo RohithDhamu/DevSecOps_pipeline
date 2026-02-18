@@ -57,10 +57,20 @@ jobs:
           kubectl rollout status deployment/gatekeeper-controller-manager \
             -n gatekeeper-system --timeout=180s
 
-      # Apply Policies
-      - name: Apply Policies
+      # Apply Templates
+      - name: Apply Constraint Templates
         run: |
-          kubectl apply -f policies/
+          kubectl apply -f policies/*-template.yaml
+
+      # Wait for CRDs
+      - name: Wait for CRDs
+        run: |
+          kubectl wait --for=condition=Established crd --all --timeout=90s
+
+      # Apply Constraints
+      - name: Apply Constraints
+        run: |
+          kubectl apply -f policies/*-constraint.yam
 
       # Deploy Application (Immutable SHA tag — no sed needed)
       - name: Deploy Application
