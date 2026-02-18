@@ -24,29 +24,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
+      # Authenticate to GCP using OIDC
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: "projects/769170094354/locations/global/workloadIdentityPools/github-action-pool/providers/github-actions-provider"
           service_account: "rohith-wif@cloudside-academy.iam.gserviceaccount.com"
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
 
+      # Install GKE Auth Plugin
       - name: Install GKE Auth Plugin
         run: |
           gcloud components install gke-gcloud-auth-plugin --quiet
           echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
+      # Get GKE Credentials
       - name: Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $CLUSTER_NAME \
             --zone $GKE_ZONE \
             --project $PROJECT_ID
 
-      - name: Deploy to GKE
+      # Install Gatekeeper (safe if already installed)
+      - name: Install Gatekeeper
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml
+          kubectl rollout status deployment/gatekeeper-controller-manager \
+            -n gatekeeper-system --timeout=180s
+
+      # Apply Policies
+      - name: Apply Policies
+        run: |
+          kubectl apply -f policies/
+
+      # Deploy Application (Immutable SHA tag — no sed needed)
+      - name: Deploy Application
         run: |
           IMAGE=$ARTIFACT_REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.event.workflow_run.head_sha }}
-          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/deployment.yaml
+
+          kubectl set image deployment/devsecops-app \
+            devsecops-app=$IMAGE --record || true
+
           kubectl apply -f k8s/
+
+      # Verify Rollout
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/devsecops-app --timeout=180s
