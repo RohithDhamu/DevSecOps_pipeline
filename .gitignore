@@ -13,7 +13,6 @@
 *.tfplan
 
 # Ignore variable files (sensitive)
-*.tfvars
 *.tfvars.json
 
 # Ignore crash logs
