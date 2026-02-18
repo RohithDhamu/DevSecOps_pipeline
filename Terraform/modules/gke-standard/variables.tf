@@ -11,9 +11,6 @@ variable "cluster_name" {
   type = string
 }
 
-variable "node_count" {
-  type = number
-}
 
 variable "machine_type" {
   type = string
@@ -43,4 +40,12 @@ variable "pods_range_name" {
 variable "services_range_name" {
   description = "Secondary range name for Services"
   type        = string
+}
+
+variable "min_node_count" {
+  type = number
+}
+
+variable "max_node_count" {
+  type = number
 }
