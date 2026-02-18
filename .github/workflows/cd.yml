@@ -11,12 +11,12 @@ permissions:
   id-token: write
 
 env:
-  PROJECT_ID: cloudside-academy
-  ARTIFACT_REGION: us-central1
-  GKE_ZONE: us-central1-a
-  REPO_NAME: rohith-task
-  IMAGE_NAME: rohith-devsecops
-  CLUSTER_NAME: rohith-task
+  PROJECT_ID: <gcp-project-id>
+  ARTIFACT_REGION: <artifact-region>
+  GKE_ZONE: <gke-zone>
+  REPO_NAME: <artifact-repository-name>
+  IMAGE_NAME: <image-name>
+  CLUSTER_NAME: <gke-cluster-name>
 
 jobs:
   deploy:
@@ -27,12 +27,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Authenticate to GCP using OIDC
+      # Authenticate to Google Cloud via OIDC
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/769170094354/locations/global/workloadIdentityPools/github-action-pool/providers/github-actions-provider"
-          service_account: "rohith-wif@cloudside-academy.iam.gserviceaccount.com"
+          workload_identity_provider: "projects/<project-number>/locations/global/workloadIdentityPools/<pool-name>/providers/<provider-name>"
+          service_account: "<service-account>@<project-id>.iam.gserviceaccount.com"
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -43,14 +43,14 @@ jobs:
           gcloud components install gke-gcloud-auth-plugin --quiet
           echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> $GITHUB_ENV
 
-      # Get GKE Credentials
+      # Get Cluster Credentials
       - name: Get GKE Credentials
         run: |
           gcloud container clusters get-credentials $CLUSTER_NAME \
             --zone $GKE_ZONE \
             --project $PROJECT_ID
 
-      # Install Gatekeeper (safe if already installed)
+      # Install OPA Gatekeeper
       - name: Install Gatekeeper
         run: |
           kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml
@@ -72,17 +72,17 @@ jobs:
         run: |
           kubectl apply -f policy-constraints/
 
-      # Deploy Application (Immutable SHA tag — no sed needed)
+      # Deploy Application (Immutable SHA tag)
       - name: Deploy Application
         run: |
           IMAGE=$ARTIFACT_REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.event.workflow_run.head_sha }}
 
-          kubectl set image deployment/devsecops-app \
-            devsecops-app=$IMAGE --record || true
+          kubectl set image deployment/<deployment-name> \
+            <container-name>=$IMAGE --record || true
 
           kubectl apply -f k8s/
 
       # Verify Rollout
       - name: Verify Deployment
         run: |
-          kubectl rollout status deployment/devsecops-app --timeout=180s
+          kubectl rollout status deployment/<deployment-name> --timeout=180s

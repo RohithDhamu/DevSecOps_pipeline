@@ -7,13 +7,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # Required for OIDC
+  id-token: write   # Required for OIDC authentication
 
 env:
-  PROJECT_ID: cloudside-academy
-  REGION: us-central1
-  REPO_NAME: rohith-task          # Artifact Registry repo name (NOT cluster name)
-  IMAGE_NAME: rohith-devsecops
+  PROJECT_ID: <gcp-project-id>
+  REGION: <artifact-region>
+  REPO_NAME: <artifact-repository-name>
+  IMAGE_NAME: <image-name>
 
 jobs:
   build:
@@ -23,37 +23,35 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Authenticate using OIDC
+      # Authenticate to Google Cloud using OIDC
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/769170094354/locations/global/workloadIdentityPools/github-action-pool/providers/github-actions-provider"
-          service_account: "rohith-wif@cloudside-academy.iam.gserviceaccount.com"
+          workload_identity_provider: "projects/<project-number>/locations/global/workloadIdentityPools/<pool-name>/providers/<provider-name>"
+          service_account: "<service-account>@<project-id>.iam.gserviceaccount.com"
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          gcloud auth configure-docker $REGION-docker.pkg.dev
 
-      # Build Docker Image (IMPORTANT: ./app)
+      # Build Docker Image
       - name: Build Docker Image
         run: |
-          docker build --pull --no-cache \
-            -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }} \
-            ./app
+          docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }} .
 
-      # Scan Image with Trivy (clean method)
+      # Scan Image using Trivy
       - name: Scan Image with Trivy
-        uses: aquasecurity/trivy-action@0.20.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           format: table
           exit-code: 1
           severity: HIGH,CRITICAL
 
-      # Push Image
+      # Push Image only if Scan Passes
       - name: Push Docker Image
         run: |
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:${{ github.sha }}
